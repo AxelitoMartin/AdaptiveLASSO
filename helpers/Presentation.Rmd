@@ -1,0 +1,583 @@
+---
+title: "Adaptive-LASSO for Cox's Proportional Hazard model"
+author: "Axel Martin"
+date: "`r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    seal: false
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      countIncrementalSlides: false
+      
+---
+
+```{r setup, include=FALSE}
+library(AdaptiveLasso)
+library(knitr)
+library(dplyr)
+library(dtplyr)
+library(DT)
+library(kableExtra)
+library(ggplot2)
+library(here)
+library(survival)
+library(CPE)
+library(plotly)
+library(survminer)
+library(ggrepel)
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE)
+
+write_matex <- function(x) {
+  begin <- "$$\\begin{bmatrix}"
+  end <- "\\end{bmatrix}$$"
+  X <-
+    apply(x, 1, function(x) {
+      paste(
+        paste(x, collapse = "&"),
+        "\\\\"
+      )
+    })
+  writeLines(c(begin, X, end))
+}
+```
+
+```{css, echo = FALSE}
+.remark-slide-content {
+  font-size: 20px;
+  padding: 20px 50px 20px 50px;
+}
+.remark-code, .remark-inline-code {
+  background: #f0f0f0;
+}
+.remark-code {
+  font-size: 14px;
+}
+.huge .remark-code { /*Change made here*/
+    font-size: 100% !important;
+}
+
+.red { color: red; }
+
+.my-one-page-font {
+  
+  font-size: 13px;
+  
+}
+```
+
+
+.center[
+
+# Adaptive-LASSO for Cox's Proportional Hazard model
+## Survival Analysis Project
+### Axel Martin
+]
+
+---
+# Outline
+
+- **Motivation & Problem formulation**
+
+--
+
+- **A review of LASSO**
+
+--
+
+- **Adaptive LASSO estimator**
+
+--
+
+- **Algorithm**
+
+--
+
+- **A simulation study**
+
+--
+
+- **A case study with genomic cancer data**
+
+--
+
+- **Limitations**
+
+--
+
+- **Attempting to overcome limitations**
+
+---
+# Motivation
+
+- In practice not all covariates may contribute to the prediction of survival outcomes, some components of $\beta$ may be 0 in the true model
+
+- When $n \rightarrow \infty$ an ideal model selection and estimation procedure would identify the true model with probability 1 and provide consistent and efficient estimators for relevant coefficients
+
+- We want to create an estimator such that unimportant variables receive larger penalties than the important ones so important variables tend to be retained in the selection process while being more likely to drop the unimportant ones
+
+- This estimator should also have **oracle properties** with the proper choice of regularization parameters
+
+
+---
+# Problem Formulation 
+
+- Let $z$ be the set of $d$ covariates: $z = (z_1,..., z_d)^T$
+
+- Let $T_i$ and $C_i$ be the failure and censoring times of subject $i$ ( $i = 1,...,n$ )
+
+- Define $\tilde{T_i} = min(T_i,C_i)$ be the observed time and $\delta_i = I(T_i \leq C_i)$, and we assume for simplicity that there are no ties
+
+- Use $z_i = (z_{i1},..., z_{id})^T$ and assume $T_i \perp C_i | z_i$ and that the censoring mechanism in noninformative.
+
+- Recall the Cox's Proportional Hazard model (CPH) has form $h(t|z) = h_0(t)exp(\beta^Tz)$ with partial log-likelihood $l_n(\beta) = \sum_{i = 1}^n \delta_i \bigg(\beta^T z_i - \ln \sum_{j : \tilde{T_j} \geq \tilde{T_i}} exp(\beta^T z_j) \bigg)$
+
+- And has solution $\hat{\beta} = \underset{\beta}{\text{argmin}} (- l_n(\beta))$
+---
+# LASSO review
+
+- The LASSO selects important variables under the CPH model by shrinking some regression coefficients to zero, selecting important variables and estimating the regression model simultaneously
+
+- Tibshirani (1997) proposed to minimize the penalized log partial likelihood function $- \frac{1}{n} l_n(\beta) + \lambda \sum_{j=1}^d J(\beta_j)$ where $J(\beta_j) = |\beta_j|$ which shrinks small coefficients to zero and hence results in a sparse representation of the solution
+
+### Issues with the LASSO estimator
+
+- The LASSO estimator **does not** possess the oracle properties
+
+- Estimation large $\beta_j$'s may suffer from bias if $\lambda$ is chosen too big, while the model may not be sufficiently sparse if $\lambda$ is too small
+
+---
+# Adaptive estimator - Proposal
+
+- Zhang & Lu propose the following adaptive LASSO estimator:
+
+$\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda \sum_{j=1}^d |\beta_j| \tau_j \bigg)$ where $\tau_j = 1/|\tilde{\beta_j}|$ with $\tilde{\beta} = (\tilde{\beta_1},...,\tilde{\beta_d})$
+
+- We set $\tilde{\beta}$ to be the maximizer of the log partial likelihood (or equivalently the minimizer of the negative log partial likelihood) and thus $\tilde{\beta} = \underset{\beta}{\text{argmin}} (- l_n(\beta))$
+
+- Since $\tilde{\beta}$ is a consistent estimator of $\beta$, their values reflect the relative importance of the covariates.
+
+- The estimator of interest is thus 
+
+$\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda \sum_{j=1}^d |\beta_j|/|\tilde{\beta_j}| \bigg)$
+
+- Note that any consistent estimators of $\beta$ can be used, $\tilde{\beta}$ is just a convenient one
+
+---
+
+# Adaptive estimator - Properties
+
+#### Theoretical properties
+
+- It can be shown that $\hat{\beta_n}$ is root-n consistent if $\lambda_n \rightarrow 0$ at an appropriate rate. If $\sqrt n \lambda_n = O_p(1)$ then the adaptive LASSO estimator satisfies $||\hat{\beta_n} - \beta || = O_p(n^{-1/2})$ 
+
+- It can also be shown that when $\lambda_n$ is chosen properly, the adaptive LASSO estimator has the oracle property, that is as $n \rightarrow \infty$ the adaptive LASSO can perform as well as if the correct submodel was known.
+
+#### Variance estimation
+
+- We can decompose the Hessian matrix as 
+$G = \nabla^2 l(\hat{\beta}) = \bigg( G_{11}, G_{12}; G_{12}, G_{22} \bigg) $ 
+
+- Let $\hat{\beta_1}$ be the $r$ nonzero components with corresponding $G$ matrix $G_{11}$. Let $E = G_{22} - G_{12}G_{11}^{-1} G_{12}$ and $\tilde{G_{11}} = G_{11} + \lambda A_{11}$ where $A_{11} = diag \{1/\beta_1^2,..., 1/\beta_r^2\}$. Then 
+
+$\hat{cov}(\hat{\beta_1}) = G_{11}^{-1} + (G_{11}^{-1} - \tilde{G_{11}^{-1}}) G_{12} E^{-1} G_{21} (G_{11}^{-1} - \tilde{G_{11}^{-1}})$
+
+---
+# Proposed Algorithm (1)
+
+- We can approximate the partial likelihood function through the Newton-Raphson update through iterative least squares (subject to the weighted $L_1$ penalty)
+
+- Let the gradient vector $\nabla l(\beta) = - \partial l_n(\beta)/\partial \beta$ and the Hessian matrix  $\nabla^2 l(\beta) = - \partial^2 l_n(\beta)/\partial \beta \partial \beta^T$, for which we can consider the Cholesky decomposition into $\nabla^2 l(\beta) = X^TX$
+
+- Set pseudo response $Y = (X^T)^{-1} (\nabla^2 l(\beta) \beta - \nabla l(\beta))$
+
+- By second-order Taylor Exansion we have $- l_n(\beta) \approx 1/2 (Y - X\beta)^T(Y-X\beta)$
+
+- Thus at each step we want to minimize:
+
+$1/2 (Y - X\beta)^T(Y-X\beta) + \lambda \sum_{j = 1}^d |\beta_j|/|\tilde{\beta_j}|$ 
+
+---
+# Proposed Algorithm (2)
+
+- **Step 1**: Obtain $\tilde{\beta}$ by minimizing the negative log partial likelihood $-l_n(\beta)$ (can be done by simply running `coxph()`)
+
+- **Step 2**: Initialize by setting k = 1 and $\hat{\beta}_{[1]} = 0$
+
+- **Step 3**: Compute $\nabla l(\beta)$, $\nabla^2 l(\beta)$, $X$ and $Y$ based on the current value of $\hat{\beta}_{[k]}$
+
+- **Step 4**: Compute 
+
+$\hat{\beta}_{[k+1]} = 1/2 (Y - X\hat{\beta}_{[k]})^T(Y-X\hat{\beta}_{[k]}) + \lambda \sum_{j = 1}^d |\hat{\beta}_{[k]_j}|/|\tilde{\beta_j}|$
+
+Using the `shooting algorithm`
+
+- **Step 5**: Let $k = k + 1$ and go back to **Step 3** until the convergence criterion is met
+
+---
+# Simulations - Set up 
+
+In order to study the empirical properties of this estimator we simulate time to event data from a Weibull distribution under multiple scenarios, where we vary the following conditions:
+
+- Sample size: $n$ = 150, 300
+
+- Censoring: Percentage of observations that were censored, 10%, 50%
+
+- Strength of true coefficients: we consider a set of 30 covariates, much of them being noise (20/30) with coefficient = 0. 
+**Model 1** $\beta$ = (1,1,1,1,1,-1,-1,-1,-1,-1,0,...,0)
+**Model 2** $\beta$ = (.5,.5,.5,.5,.5,-.5,-.5,-.5,-.5,-.5,0,...,0)
+
+We simulate 25 dataset for each scenario.
+
+All covariates $z$'s are drawn from uncorrelated standard normal distributions.
+We consider metrics Mean Square Error (MSE = $(\hat{\beta} - \beta)^TV(\hat{\beta} - \beta)$, where $V$ is population covariance matrix of the covariates), the number of covariates correctly assigned as 0, the number of covariates incorrectly assigned as 0 and the concordance probability estimate (CPE). 
+---
+
+# Simulations - Results
+
+
+```{r, echo=FALSE}
+
+load(here("results/StrongModel_150_10censR.data"))
+out_S_150_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_150_10) <- c("MLE","LASSO","ALASSO")
+load(here("results/StrongModel_300_10censR.data"))
+out_S_300_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_300_10) <- c("MLE","LASSO","ALASSO")
+load(here("results/WeakModel_150_10censR.data"))
+out_W_150_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_W_150_10) <- c("MLE","LASSO","ALASSO")
+load(here("results/WeakModel_300_10censR.data"))
+out_W_300_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_W_300_10) <- c("MLE","LASSO","ALASSO")
+
+
+
+kable(cbind(out_S_150_10, out_S_300_10, 
+            out_W_150_10,out_W_300_10)[-1,],row.names = T, format="html")%>%
+  kable_styling(font_size = 11) %>%
+  add_header_above(c(" ", "N = 150" = 3, "N = 300" = 3, "N = 150" = 3, "N = 300" = 3)) %>% 
+  add_header_above(c(" ", "Model 1" = 6, "Model 2" = 6)) %>% 
+  add_header_above(c(" ", "Censoring = 10%" = 12))
+
+```
+
+```{r, echo=FALSE}
+
+load(here("results/StrongModel_150_50censR.data"))
+out_S_150_50 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_150_50) <- c("MLE","LASSO","ALASSO")
+load(here("results/StrongModel_300_50censR.data"))
+out_S_300_50 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_300_50) <- c("MLE","LASSO","ALASSO")
+load(here("results/WeakModel_150_50censR.data"))
+out_W_150_50 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_W_150_50) <- c("MLE","LASSO","ALASSO")
+load(here("results/WeakModel_300_50censR.data"))
+out_W_300_50 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_W_300_50) <- c("MLE","LASSO","ALASSO")
+
+
+
+kable(cbind(out_S_150_50, out_S_300_50, 
+            out_W_150_50,out_W_300_50)[-1,],row.names = T, format="html")%>%
+  kable_styling(font_size = 11) %>%
+  add_header_above(c(" ", "N = 150" = 3, "N = 300" = 3, "N = 150" = 3, "N = 300" = 3)) %>% 
+  add_header_above(c(" ", "Model 1" = 6, "Model 2" = 6)) %>% 
+  add_header_above(c(" ", "Censoring = 50%" = 12))
+
+```
+
+
+
+---
+# A case study with cancer genomic data
+
+We use overall survival data from Memorial Sloan Kettering Cancer Center of 1054 stage IV lung adenocarcinoma patients with targeted panel next-generation sequencing. We included all cancer genes that had a mutation rate of at least 3% (to avoid computational issues), all coded as binary, between wild-type (0) and having at least one mutation (1). 
+
+<!-- To summarise the results we perform 3 fold cross-validation, using 2 of the folds to generated the MLE, LASSO and Adaptive LASSO models, and using the left over fold for prediction. -->
+
+```{r, echo=FALSE}
+load(here("results/Full_lung_results.Rdata"))
+dat <- read.csv("~/Desktop/LungReadyStudy.csv", row.names = 1)
+dat <- dat[, which(apply(dat, 2, sum)/nrow(dat) > 0.03)]
+
+keep <- which(results$beta.alasso != 0)
+genes <- colnames(dat)[keep+3]
+out_table <- as.data.frame(matrix(nrow= length(keep), ncol = 3))
+colnames(out_table) <- c("MLE","LASSO","ALASSO")
+rownames(out_table) <- genes
+
+fit.raw <- coxph(Surv(time2, status) ~ . , data = dat[,-1])
+temp <- as.data.frame(summary(fit.raw)$coefficients)
+temp <- round(temp[keep, c(1,3)],3)
+out_table$MLE <- paste0(temp$coef, " (", temp$`se(coef)`, ")")
+out_table$LASSO <- paste0(round(results$beta.lasso[keep],3), " (", round(results$beta.sd.lasso[keep],3), ")")
+out_table$ALASSO <- paste0(round(results$beta.alasso[keep],3), " (", round(results$beta.sd.alasso[keep],3), ")")
+kable(out_table,row.names = T, format="html")%>%
+  kable_styling(font_size = 15) 
+```
+
+---
+# Ensemble learning model 
+
+Ensemble learning is done by aggregating multiple predictive models into a single prediction. This is done using cross-validation, where we randomly split the data into a training and testing set, and use the training data to predict the test set. Here we use 10 splits of 2/3 of the data for training and 1/3 for testing. At each iteration we record the variables selected and the predicted risk of patients in the set. We can average this predict risk and rescale it to use it as a predictive tool that serves as surrogate for the genetic risk of the patients. 
+
+```{r, echo=FALSE,fig.width=10, fig.height=2.5}
+load(here("results/Lung_ensemble.Rdata"))
+dat <- read.csv("~/Desktop/LungReadyStudy.csv", row.names = 1)
+dat <- dat[, which(apply(dat, 2, sum)/nrow(dat) > 0.03)]
+
+CPE <- c()
+risk <- as.data.frame(matrix(nrow = nrow(dat), ncol = length(LASSO)))
+rownames(risk) <- rownames(dat)
+coeffs <- as.data.frame(matrix(nrow = ncol(dat)-3, ncol = length(LASSO)))
+rownames(coeffs) <- colnames(dat)[-c(1:3)]
+
+for(i in 1:length(LASSO)){
+  temp <- NULL
+  temp <- LASSO[[i]]
+  
+  set.seed(i+210793)
+  rm.samples <- sample(1:nrow(dat), ceiling(nrow(dat)*1/3),replace = FALSE)
+  train <- dat[-rm.samples,]
+  test <- dat[rm.samples,]
+  time <- test$time2
+  delta <- test$status
+  
+  # get risk of test set + CPE #
+  fit_alasso <- coxph(Surv(time,delta) ~ ., data = test[,-c(1:3)], init = temp$beta.alasso,iter=0)
+  CPE[i] <- as.numeric(phcpe(coxph(Surv(test$time2, test$status) ~predict(fit_alasso, newdata=as.data.frame(test)))))
+  # fit_lasso <- coxph(Surv(time,delta) ~ ., data = test[,-c(1:3)], init = temp$beta.lasso,iter=0)
+  #       as.numeric(phcpe(coxph(Surv(test$time2, test$status) ~predict(fit_lasso, newdata=as.data.frame(test)))))
+  
+  risk[match(rownames(test),rownames(risk)),i] <- as.numeric(predict(fit_alasso, newdata=as.data.frame(test)))
+  
+  ### coefficients ###
+  coeffs[,i] <- temp$beta.alasso
+}
+
+
+meanCoefs <- apply(coeffs,1,function(x){mean(x,na.rm = TRUE)})
+selectFreq <- apply(coeffs,1,function(x){
+  length(which(x!=0))/length(x)
+})
+
+data.temp <- dat[,-c(1:3)]
+MutationFrequency <- apply(data.temp,2,function(x){
+  sum(x)/length(x)
+})
+
+resultsAll <- as.data.frame(cbind(meanCoefs,selectFreq,MutationFrequency))
+colnames(resultsAll) <- c("MeanCoefficient","SelectionFrequency","MutationFrequency")
+rownames(resultsAll) <- names(meanCoefs)
+resultsAll <- resultsAll[complete.cases(resultsAll),]
+resultsAll$GeneName <- rownames(resultsAll)
+resultsAll$MutationFrequency2 <- cut(resultsAll$MutationFrequency, c(0,0.10,0.20,0.40))
+
+selectInflPlot <- plot_ly(data = resultsAll, x = ~MeanCoefficient, y = ~SelectionFrequency,
+                          text = ~paste('Gene :',GeneName,
+                                        '</br> Hazard Ratio :',round(exp(MeanCoefficient),digits=2)),
+                          mode = "markers",size = ~MutationFrequency,color = ~MeanCoefficient) %>%
+  layout(title ="Volcano Plot")
+
+average.risk <- apply(risk,1,function(x){
+  mean(as.numeric(x),na.rm = TRUE)
+})
+rm <- which(is.na(average.risk))
+average.risk <- average.risk[-rm]
+
+average.risk[which(is.na(average.risk))] <- NA
+to <- c(0,10)
+from <- range(average.risk, na.rm = TRUE, finite = TRUE)
+RiskScore <- (as.numeric(average.risk)-from[1])/diff(from)*diff(to)+to[1]
+
+summary.RiskScore <- round(as.data.frame(c(quantile(RiskScore,c(0.1,0.25,0.33,0.5,0.66,0.75,0.9),na.rm = TRUE))),digits = 2)
+colnames(summary.RiskScore) <- "Risk Score"
+rownames(summary.RiskScore) <- c("Lower 10%","1st Quarter","1st Tertile","Median","2nd Tertile","3rd Quarter","Upper 10%")
+
+meanRS <- mean(RiskScore)
+refit.risk <- coxph(Surv(dat$time2[-rm],dat$status[-rm])~RiskScore)
+
+refit.risk_table <- as.data.frame(summary(refit.risk)$coefficients) %>%
+  rename(Coefficient = coef, HazardRatio = `exp(coef)`, SE = `se(coef)`, Z = z, Pvalue = `Pr(>|z|)`)
+Risk <- as.data.frame(RiskScore)
+
+cuts <- c(0.25,0.75,0.9)
+RiskHistogram <- ggplot(Risk, aes(x = RiskScore, y = ..density..)) +
+  geom_histogram(show.legend = FALSE, aes(fill=..x..),
+                 breaks=seq(min(Risk$RiskScore,na.rm = T), max(Risk$RiskScore,na.rm = T), by=0.25)) +
+  geom_density(show.legend = FALSE) +
+  theme_minimal() +
+  labs(x = "Average risk score", y = "Density") +
+  scale_fill_gradient(high = "red", low = "green") +
+  geom_vline(xintercept = as.numeric(quantile(RiskScore, cuts)),
+             color = "blue", linetype = "dashed")
+
+# kable(summary.RiskScore)
+kable(refit.risk_table,row.names = T, format="html")%>%
+  kable_styling(font_size = 12)
+
+# png("RiskHistogram.png")
+RiskHistogram
+# dev.off()
+```
+
+---
+# Ensemble learning model 
+
+```{r,message = F, warning=F, echo = F, fig.width=9}
+selectInflPlot
+# mod_data <- resultsAll %>%
+#   mutate(Feature = rownames(resultsAll))
+# png("selectInflPlot.png")
+# # selectInflPlot
+# mod_data %>% 
+#   ggplot(aes(x = exp(MeanCoefficient), y = SelectionFrequency, label = Feature)) +
+#   geom_point(aes(color = .data$SelectionFrequency > 0.8), show.legend = FALSE) +
+#   geom_text_repel(data = mod_data %>%
+#               filter(SelectionFrequency > 0.8) ) +
+#   geom_vline(xintercept = 1, linetype = "dashed") +
+#   geom_hline(yintercept = 0.8, linetype = "dashed", color = "blue") +
+#   theme(legend.position = "none") +
+#   xlab("Mean hazard ratio") + ylab("Selection Frequency") +
+#   theme_bw()
+# dev.off()
+```
+
+---
+# Ensemble learning model
+
+```{r,echo = F,fig.width=9,fig.height=5}
+numGroups <- length(cuts)+1
+qts <- quantile(average.risk,cuts)
+riskGroup <- c()
+for(i in 1:length(average.risk)){
+  temp <- average.risk[i] - qts
+  if(length(match(names(which.max(temp[temp<0])),names(qts))) == 1) riskGroup[i] <- match(names(which.max(temp[temp<0])),names(qts))
+  else riskGroup[i] <- numGroups
+}
+if(numGroups == 2){riskGroup[is.na(riskGroup)] <- 1}
+
+data <- dat[-rm, -1]
+data$RiskGroup <- riskGroup
+data$RiskGroup <- factor(data$RiskGroup, levels = c(1:numGroups) )
+
+fit0 <- coxph(Surv(time2,status) ~ RiskGroup,data=data,
+              na.action=na.exclude)
+log.test.pval <- as.vector(summary(fit0)[10][[1]])[3]
+limit <- as.numeric(quantile(data$time2,0.95))
+
+KM <- ggsurvplot(survfit(Surv(time2,status) ~ RiskGroup,data=data, conf.type = "log-log"),conf.int  = TRUE,
+                 surv.median.line = "hv", risk.table = F,
+                 data = data,xlim=c(0,limit),break.time.by = 6) + xlab(paste0("Time (Months)")) +
+  labs(title = paste("Kaplan Meier Plot (p-value : " ,round(log.test.pval,digits =5),")",sep=""))
+
+
+survivalGroup <- as.data.frame(matrix(nrow=numGroups,ncol=4))
+rownames(survivalGroup) <- paste0("riskGroup ",1:numGroups)
+colnames(survivalGroup) <- c("MedianOS","95%CI","1Ysurvival","3Ysurvival")
+# for each group find closest value to median
+YR1 <- 1*12;YR3 <- 3*12
+for(i in 1:numGroups){
+  NewObject <- with(data[data$RiskGroup == i,],Surv(time2,status))
+  Fit <- survfit(NewObject ~ 1,data=data[data$RiskGroup == i,], conf.type = "log-log")
+  # med.index <- which.min(abs(Fit$surv-0.5))
+  YR1.index <- which.min(abs(Fit$time-YR1))
+  YR3.index <- which.min(abs(Fit$time-YR3))
+  survivalGroup[i,] <- c(as.numeric(round(summary(Fit)$table[7],digits=2)),
+                         paste0("(",as.numeric(round(summary(Fit)$table[8],digits=2)),",",
+                                as.numeric(round(summary(Fit)$table[9],digits=2)),")"),
+                         paste0(round(Fit$surv[YR1.index],digits=2)," (",
+                                round(Fit$lower[YR1.index],digits=2),",",
+                                round(Fit$upper[YR1.index],digits=2),")"),
+                         paste0(round(Fit$surv[YR3.index],digits=2)," (",
+                                round(Fit$lower[YR3.index],digits=2),",",
+                                round(Fit$upper[YR3.index],digits=2),")"))
+}
+fit <- coxph(Surv(time2, status)~ as.factor(RiskGroup), data = data)
+survivalGroup$HazardRatio <- ""
+survivalGroup$HazardRatio[2:nrow(survivalGroup)] <- round(summary(fit)$coefficients[,2],digits = 3)
+
+# png("KM.png")
+KM
+# dev.off()
+kable(survivalGroup,row.names = T, format="html")%>%
+  kable_styling(font_size = 12)
+
+# kable(out,row.names = T, format="html")%>%
+#   kable_styling(font_size = 25) %>%
+#   add_header_above(c(" ", "# non zero" = 3, "CPE" = 3))
+```
+
+
+---
+# Limititations
+
+There are several limitations to this method however.
+
+- The method is sensitive to the choice of the weights in the adaptive penalty. Though it has nice asymptotic properties, in practical cases with limited sample size a poor choice of weights may lead to substantial bias and numerical issues
+
+- LASSO is known to perform poorly in datasets with high collinearity. This is further exacerbated from the weights $|\tilde{\beta}|$ that would themselves be poorly estimated via MLE.
+
+- In general in settings where we have d >> n we will have issues estimating the weights.
+---
+# Resolving limitations
+
+- In cases where d >> n or with high colinearity we can still utilise this method by using another consistent estimator of $|\tilde{\beta}|$. By replacing this ML estimate with the Ridge estimator (which is consistent under certain conditions) we can still achieve the desired result. 
+
+
+- However in cases of high collinearity even if the weights are well estimated, the LASSO estimator will still suffer. Thus, we can also attempt to extend the Adaptive LASSO estimator to the elastic-net estimator, which incorportates both $L_1$ and $L_2$ penalty and acting as a mixture of LASSO and Ridge models:
+
+$\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda_1 \sum_{j=1}^d |\beta_j|/|\tilde{\beta_j}| + \lambda_2 \sum_{j=1}^d \beta_j^2/\tilde{\beta_j}^2 \bigg)$
+
+---
+# Example
+
+```{r, echo = F}
+
+load(here("results/ENET_StrongModel_150_10cens.Rdata"))
+out_S_150_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_150_10) <- c("MLE","LASSO","AENET")
+load(here("results/ENET_StrongModel_Corr_150_10cens.Rdata"))
+out_S_C_150_10 <- do.call('rbind',lapply(out_results,function(x){
+  paste0(round(apply(x, 2, mean),3), " (",round(apply(x, 2, sd),3),")")
+}))
+colnames(out_S_C_150_10) <- c("MLE","LASSO","AENET")
+
+
+
+kable(cbind(out_S_150_10, out_S_C_150_10)[-1,],row.names = T, format="html")%>%
+  kable_styling(font_size = 11) %>%
+  add_header_above(c(" ", "Correlation = 0" = 3, "Correlation = 0.8" = 3)) %>% 
+  add_header_above(c(" ", "N = 150, Model 1, Censoring = 10%" = 6))
+```
+
+<!-- --- -->
+<!-- # Outstanding tasks -->
+
+<!-- - Run larger simulations for the proposed ENET estimator -->
+<!-- - Look at that estimators theoretical properties (might be hard...) -->
+<!-- - Build software to run this method in R (currently available as an undocumented github repo) -->
+<!-- - left truncation estimator -->
+
+

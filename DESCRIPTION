@@ -1,0 +1,14 @@
+Package: AdaptiveLasso
+Type: Package
+Title: Adaptive Lasso implemented as proposed by Zhang and Lu (Adaptive Lasso for Cox’s proportional hazards model)
+Version: 0.1.0
+Author: Who wrote it
+Maintainer: The package maintainer <yourself@somewhere.net>
+Description: 
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    survival,
+    dplyr
+RoxygenNote: 7.1.1

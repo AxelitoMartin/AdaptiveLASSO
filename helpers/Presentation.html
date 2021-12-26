@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Adaptive-LASSO for Cox’s Proportional Hazard model</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Axel Martin" />
+    <meta name="date" content="2021-12-26" />
+    <link href="libs/remark-css/default.css" rel="stylesheet" />
+    <link href="libs/remark-css/default-fonts.css" rel="stylesheet" />
+    <script src="libs/kePrint/kePrint.js"></script>
+    <link href="libs/lightable/lightable.css" rel="stylesheet" />
+    <script src="libs/htmlwidgets/htmlwidgets.js"></script>
+    <script src="libs/plotly-binding/plotly.js"></script>
+    <script src="libs/typedarray/typedarray.min.js"></script>
+    <script src="libs/jquery/jquery.min.js"></script>
+    <link href="libs/crosstalk/css/crosstalk.css" rel="stylesheet" />
+    <script src="libs/crosstalk/js/crosstalk.min.js"></script>
+    <link href="libs/plotly-htmlwidgets-css/plotly-htmlwidgets.css" rel="stylesheet" />
+    <script src="libs/plotly-main/plotly-latest.min.js"></script>
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+&lt;style type="text/css"&gt;
+.remark-slide-content {
+  font-size: 20px;
+  padding: 20px 50px 20px 50px;
+}
+.remark-code, .remark-inline-code {
+  background: #f0f0f0;
+}
+.remark-code {
+  font-size: 14px;
+}
+.huge .remark-code { /*Change made here*/
+    font-size: 100% !important;
+}
+
+.red { color: red; }
+
+.my-one-page-font {
+  
+  font-size: 13px;
+  
+}
+&lt;/style&gt;
+
+
+.center[
+
+# Adaptive-LASSO for Cox's Proportional Hazard model
+## Survival Analysis Project
+### Axel Martin
+]
+
+---
+# Outline
+
+- **Motivation &amp; Problem formulation**
+
+--
+
+- **A review of LASSO**
+
+--
+
+- **Adaptive LASSO estimator**
+
+--
+
+- **Algorithm**
+
+--
+
+- **A simulation study**
+
+--
+
+- **A case study with genomic cancer data**
+
+--
+
+- **Limitations**
+
+--
+
+- **Attempting to overcome limitations**
+
+---
+# Motivation
+
+- In practice not all covariates may contribute to the prediction of survival outcomes, some components of `\(\beta\)` may be 0 in the true model
+
+- When `\(n \rightarrow \infty\)` an ideal model selection and estimation procedure would identify the true model with probability 1 and provide consistent and efficient estimators for relevant coefficients
+
+- We want to create an estimator such that unimportant variables receive larger penalties than the important ones so important variables tend to be retained in the selection process while being more likely to drop the unimportant ones
+
+- This estimator should also have **oracle properties** with the proper choice of regularization parameters
+
+
+---
+# Problem Formulation 
+
+- Let `\(z\)` be the set of `\(d\)` covariates: `\(z = (z_1,..., z_d)^T\)`
+
+- Let `\(T_i\)` and `\(C_i\)` be the failure and censoring times of subject `\(i\)` ( `\(i = 1,...,n\)` )
+
+- Define `\(\tilde{T_i} = min(T_i,C_i)\)` be the observed time and `\(\delta_i = I(T_i \leq C_i)\)`, and we assume for simplicity that there are no ties
+
+- Use `\(z_i = (z_{i1},..., z_{id})^T\)` and assume `\(T_i \perp C_i | z_i\)` and that the censoring mechanism in noninformative.
+
+- Recall the Cox's Proportional Hazard model (CPH) has form `\(h(t|z) = h_0(t)exp(\beta^Tz)\)` with partial log-likelihood `\(l_n(\beta) = \sum_{i = 1}^n \delta_i \bigg(\beta^T z_i - \ln \sum_{j : \tilde{T_j} \geq \tilde{T_i}} exp(\beta^T z_j) \bigg)\)`
+
+- And has solution `\(\hat{\beta} = \underset{\beta}{\text{argmin}} (- l_n(\beta))\)`
+---
+# LASSO review
+
+- The LASSO selects important variables under the CPH model by shrinking some regression coefficients to zero, selecting important variables and estimating the regression model simultaneously
+
+- Tibshirani (1997) proposed to minimize the penalized log partial likelihood function `\(- \frac{1}{n} l_n(\beta) + \lambda \sum_{j=1}^d J(\beta_j)\)` where `\(J(\beta_j) = |\beta_j|\)` which shrinks small coefficients to zero and hence results in a sparse representation of the solution
+
+### Issues with the LASSO estimator
+
+- The LASSO estimator **does not** possess the oracle properties
+
+- Estimation large `\(\beta_j\)`'s may suffer from bias if `\(\lambda\)` is chosen too big, while the model may not be sufficiently sparse if `\(\lambda\)` is too small
+
+---
+# Adaptive estimator - Proposal
+
+- Zhang &amp; Lu propose the following adaptive LASSO estimator:
+
+`\(\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda \sum_{j=1}^d |\beta_j| \tau_j \bigg)\)` where `\(\tau_j = 1/|\tilde{\beta_j}|\)` with `\(\tilde{\beta} = (\tilde{\beta_1},...,\tilde{\beta_d})\)`
+
+- We set `\(\tilde{\beta}\)` to be the maximizer of the log partial likelihood (or equivalently the minimizer of the negative log partial likelihood) and thus `\(\tilde{\beta} = \underset{\beta}{\text{argmin}} (- l_n(\beta))\)`
+
+- Since `\(\tilde{\beta}\)` is a consistent estimator of `\(\beta\)`, their values reflect the relative importance of the covariates.
+
+- The estimator of interest is thus 
+
+`\(\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda \sum_{j=1}^d |\beta_j|/|\tilde{\beta_j}| \bigg)\)`
+
+- Note that any consistent estimators of `\(\beta\)` can be used, `\(\tilde{\beta}\)` is just a convenient one
+
+---
+
+# Adaptive estimator - Properties
+
+#### Theoretical properties
+
+- It can be shown that `\(\hat{\beta_n}\)` is root-n consistent if `\(\lambda_n \rightarrow 0\)` at an appropriate rate. If `\(\sqrt n \lambda_n = O_p(1)\)` then the adaptive LASSO estimator satisfies `\(||\hat{\beta_n} - \beta || = O_p(n^{-1/2})\)` 
+
+- It can also be shown that when `\(\lambda_n\)` is chosen properly, the adaptive LASSO estimator has the oracle property, that is as `\(n \rightarrow \infty\)` the adaptive LASSO can perform as well as if the correct submodel was known.
+
+#### Variance estimation
+
+- We can decompose the Hessian matrix as 
+$G = \nabla^2 l(\hat{\beta}) = \bigg( G_{11}, G_{12}; G_{12}, G_{22} \bigg) $ 
+
+- Let `\(\hat{\beta_1}\)` be the `\(r\)` nonzero components with corresponding `\(G\)` matrix `\(G_{11}\)`. Let `\(E = G_{22} - G_{12}G_{11}^{-1} G_{12}\)` and `\(\tilde{G_{11}} = G_{11} + \lambda A_{11}\)` where `\(A_{11} = diag \{1/\beta_1^2,..., 1/\beta_r^2\}\)`. Then 
+
+`\(\hat{cov}(\hat{\beta_1}) = G_{11}^{-1} + (G_{11}^{-1} - \tilde{G_{11}^{-1}}) G_{12} E^{-1} G_{21} (G_{11}^{-1} - \tilde{G_{11}^{-1}})\)`
+
+---
+# Proposed Algorithm (1)
+
+- We can approximate the partial likelihood function through the Newton-Raphson update through iterative least squares (subject to the weighted `\(L_1\)` penalty)
+
+- Let the gradient vector `\(\nabla l(\beta) = - \partial l_n(\beta)/\partial \beta\)` and the Hessian matrix  `\(\nabla^2 l(\beta) = - \partial^2 l_n(\beta)/\partial \beta \partial \beta^T\)`, for which we can consider the Cholesky decomposition into `\(\nabla^2 l(\beta) = X^TX\)`
+
+- Set pseudo response `\(Y = (X^T)^{-1} (\nabla^2 l(\beta) \beta - \nabla l(\beta))\)`
+
+- By second-order Taylor Exansion we have `\(- l_n(\beta) \approx 1/2 (Y - X\beta)^T(Y-X\beta)\)`
+
+- Thus at each step we want to minimize:
+
+`\(1/2 (Y - X\beta)^T(Y-X\beta) + \lambda \sum_{j = 1}^d |\beta_j|/|\tilde{\beta_j}|\)` 
+
+---
+# Proposed Algorithm (2)
+
+- **Step 1**: Obtain `\(\tilde{\beta}\)` by minimizing the negative log partial likelihood `\(-l_n(\beta)\)` (can be done by simply running `coxph()`)
+
+- **Step 2**: Initialize by setting k = 1 and `\(\hat{\beta}_{[1]} = 0\)`
+
+- **Step 3**: Compute `\(\nabla l(\beta)\)`, `\(\nabla^2 l(\beta)\)`, `\(X\)` and `\(Y\)` based on the current value of `\(\hat{\beta}_{[k]}\)`
+
+- **Step 4**: Compute 
+
+`\(\hat{\beta}_{[k+1]} = 1/2 (Y - X\hat{\beta}_{[k]})^T(Y-X\hat{\beta}_{[k]}) + \lambda \sum_{j = 1}^d |\hat{\beta}_{[k]_j}|/|\tilde{\beta_j}|\)`
+
+Using the `shooting algorithm`
+
+- **Step 5**: Let `\(k = k + 1\)` and go back to **Step 3** until the convergence criterion is met
+
+---
+# Simulations - Set up 
+
+In order to study the empirical properties of this estimator we simulate time to event data from a Weibull distribution under multiple scenarios, where we vary the following conditions:
+
+- Sample size: `\(n\)` = 150, 300
+
+- Censoring: Percentage of observations that were censored, 10%, 50%
+
+- Strength of true coefficients: we consider a set of 30 covariates, much of them being noise (20/30) with coefficient = 0. 
+**Model 1** `\(\beta\)` = (1,1,1,1,1,-1,-1,-1,-1,-1,0,...,0)
+**Model 2** `\(\beta\)` = (.5,.5,.5,.5,.5,-.5,-.5,-.5,-.5,-.5,0,...,0)
+
+We simulate 25 dataset for each scenario.
+
+All covariates `\(z\)`'s are drawn from uncorrelated standard normal distributions.
+We consider metrics Mean Square Error (MSE = `\((\hat{\beta} - \beta)^TV(\hat{\beta} - \beta)\)`, where `\(V\)` is population covariance matrix of the covariates), the number of covariates correctly assigned as 0, the number of covariates incorrectly assigned as 0 and the concordance probability estimate (CPE). 
+---
+
+# Simulations - Results
+
+
+&lt;table class="table" style="font-size: 11px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="12"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Censoring = 10%&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Model 1&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Model 2&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 150&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 300&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 150&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 300&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; MSEs_var &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.069 (0.021) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.127 (0.032) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.037 (0.018) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.022 (0.009) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.051 (0.014) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.01 (0.006) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.055 (0.017) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.039 (0.008) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.062 (0.026) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.013 (0.003) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.016 (0.005) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.01 (0.006) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Corrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.72 (0.098) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.934 (0.045) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.702 (0.097) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.94 (0.048) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.912 (0.067) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.988 (0.026) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.844 (0.073) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.982 (0.028) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Incorrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.02 (0.05) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.032 (0.063) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; CPEs &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.784 (0.012) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.792 (0.013) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.793 (0.013) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.79 (0.011) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.794 (0.011) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.795 (0.011) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.76 (0.016) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.761 (0.023) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.759 (0.026) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.781 (0.011) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.79 (0.01) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.791 (0.011) &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;table class="table" style="font-size: 11px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="12"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Censoring = 50%&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Model 1&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Model 2&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 150&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 300&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 150&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 300&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; MSEs_var &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.728 (0.26) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.149 (0.055) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.075 (0.058) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.41 (0.085) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.066 (0.021) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.018 (0.01) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.223 (0.082) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.044 (0.009) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.066 (0.023) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.093 (0.027) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.023 (0.007) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.016 (0.009) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Corrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.57 (0.103) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.84 (0.09) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.62 (0.078) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.896 (0.058) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.812 (0.102) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.926 (0.06) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.818 (0.056) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.946 (0.048) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Incorrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.032 (0.048) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.036 (0.057) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; CPEs &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.719 (0.035) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.789 (0.016) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.791 (0.017) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.752 (0.023) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.788 (0.013) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.79 (0.014) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.669 (0.052) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.752 (0.031) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.753 (0.032) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.71 (0.037) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.776 (0.016) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.779 (0.015) &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+
+---
+# A case study with cancer genomic data
+
+We use overall survival data from Memorial Sloan Kettering Cancer Center of 1054 stage IV lung adenocarcinoma patients with targeted panel next-generation sequencing. We included all cancer genes that had a mutation rate of at least 3% (to avoid computational issues), all coded as binary, between wild-type (0) and having at least one mutation (1). 
+
+&lt;!-- To summarise the results we perform 3 fold cross-validation, using 2 of the folds to generated the MLE, LASSO and Adaptive LASSO models, and using the left over fold for prediction. --&gt;
+
+&lt;table class="table" style="font-size: 15px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; ALASSO &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; TP53 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.51 (0.129) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.085 (0.031) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.231 (0.119) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; TBX3 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.906 (0.366) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.197 (0.304) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; KEAP1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.739 (0.174) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.509 (0.09) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.613 (0.155) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; MED12 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.701 (0.363) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.02 (0.288) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; EGFR &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.374 (0.161) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.211 (0.056) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.262 (0.143) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; CDKN2A &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.51 (0.265) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.019 (0.23) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; STK11 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.632 (0.167) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.476 (0.088) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.545 (0.151) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; PBRM1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.716 (0.281) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.336 (0.116) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.327 (0.308) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; SMARCA4 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.502 (0.191) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.086 (0.036) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.101 (0.2) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; KRAS &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.349 (0.154) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.098 (0.033) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.158 (0.151) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; alk &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -1.331 (0.526) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.424 (0.128) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; -0.743 (0.397) &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+# Ensemble learning model 
+
+Ensemble learning is done by aggregating multiple predictive models into a single prediction. This is done using cross-validation, where we randomly split the data into a training and testing set, and use the training data to predict the test set. Here we use 10 splits of 2/3 of the data for training and 1/3 for testing. At each iteration we record the variables selected and the predicted risk of patients in the set. We can average this predict risk and rescale it to use it as a predictive tool that serves as surrogate for the genetic risk of the patients. 
+
+&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Coefficient &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; HazardRatio &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; SE &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Z &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Pvalue &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; RiskScore &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5259986 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.692148 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0590912 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 8.901471 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+![](Presentation_files/figure-html/unnamed-chunk-5-1.png)&lt;!-- --&gt;
+
+---
+# Ensemble learning model 
+
+<div id="htmlwidget-d35cc3c05b9a41a0b1f5" style="width:648px;height:504px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-d35cc3c05b9a41a0b1f5">{"x":{"visdat":{"187e68108ad3":["function () ","plotlyVisDat"]},"cur_data":"187e68108ad3","attrs":{"187e68108ad3":{"x":{},"y":{},"text":{},"mode":"markers","color":{},"size":{},"alpha_stroke":1,"sizes":[10,100],"spans":[1,20]}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"title":"Volcano Plot","xaxis":{"domain":[0,1],"automargin":true,"title":"MeanCoefficient"},"yaxis":{"domain":[0,1],"automargin":true,"title":"SelectionFrequency"},"hovermode":"closest","showlegend":false,"legend":{"yanchor":"top","y":0.5}},"source":"A","config":{"showSendToCloud":false},"data":[{"x":[0,0.0288396891288516,0.158539730995847,0,0.040699134352075,-0.0086476060260406,0,-0.202428394425334,0,0.697306684980072,-0.036095561351606,-0.0871208125879882,0,-0.0185340877378201,0,0,-0.0538847891544736,0,-0.0143528892003208,-0.0150274112093661,0,-0.0427454825665149,-0.00252043154279516,-0.249296543014613,0,0,-0.0970714264906414,0,0,0,0.0538027413545266,0,0.0560212844280711,0,0.0571419289152896,0,0,0,0.516330395302505,0,0.393438646740701,0,0,0.0173084842102466,0,-0.0779326231285771,0.0444332462765082,-0.00585579453033251,0.128862626387347,0,0,-0.0683925337682287,0,0,0,0,0,-0.0806884242871802,0.0365265453024715,-0.0421555774294451,0,-1.1988945473463,0],"y":[0,0.1,0.9,0,0.5,0.2,0,0.3,0,1,0.1,0.4,0,0.1,0,0,0.2,0,0.2,0.1,0,0.1,0.1,0.9,0,0,0.3,0,0,0,0.1,0,0.3,0,0.2,0,0,0,1,0,0.7,0,0,0.1,0,0.4,0.3,0.2,0.6,0,0,0.3,0,0,0,0,0,0.6,0.1,0.2,0,0.9,0],"text":["Gene : APC <\/br> Hazard Ratio : 1","Gene : ERBB2 <\/br> Hazard Ratio : 1.03","Gene : TP53 <\/br> Hazard Ratio : 1.17","Gene : MTOR <\/br> Hazard Ratio : 1","Gene : ARID1A <\/br> Hazard Ratio : 1.04","Gene : PIK3C2G <\/br> Hazard Ratio : 0.99","Gene : ARID2 <\/br> Hazard Ratio : 1","Gene : TBX3 <\/br> Hazard Ratio : 0.82","Gene : NF1 <\/br> Hazard Ratio : 1","Gene : KEAP1 <\/br> Hazard Ratio : 2.01","Gene : ERBB4 <\/br> Hazard Ratio : 0.96","Gene : PAK7 <\/br> Hazard Ratio : 0.92","Gene : PTPRT <\/br> Hazard Ratio : 1","Gene : EPHA3 <\/br> Hazard Ratio : 0.98","Gene : KDR <\/br> Hazard Ratio : 1","Gene : EPHA5 <\/br> Hazard Ratio : 1","Gene : MLL3 <\/br> Hazard Ratio : 0.95","Gene : PTPRD <\/br> Hazard Ratio : 1","Gene : MED12 <\/br> Hazard Ratio : 0.99","Gene : TERT <\/br> Hazard Ratio : 0.99","Gene : ATM <\/br> Hazard Ratio : 1","Gene : ALK <\/br> Hazard Ratio : 0.96","Gene : CARD11 <\/br> Hazard Ratio : 1","Gene : EGFR <\/br> Hazard Ratio : 0.78","Gene : HGF <\/br> Hazard Ratio : 1","Gene : PIK3CG <\/br> Hazard Ratio : 1","Gene : CDKN2A <\/br> Hazard Ratio : 0.91","Gene : KDM5C <\/br> Hazard Ratio : 1","Gene : RB1 <\/br> Hazard Ratio : 1","Gene : ARID1B <\/br> Hazard Ratio : 1","Gene : BRCA2 <\/br> Hazard Ratio : 1.06","Gene : BRCA1 <\/br> Hazard Ratio : 1","Gene : FLT4 <\/br> Hazard Ratio : 1.06","Gene : MET <\/br> Hazard Ratio : 1","Gene : ATRX <\/br> Hazard Ratio : 1.06","Gene : BRAF <\/br> Hazard Ratio : 1","Gene : FAT1 <\/br> Hazard Ratio : 1","Gene : RBM10 <\/br> Hazard Ratio : 1","Gene : STK11 <\/br> Hazard Ratio : 1.68","Gene : CREBBP <\/br> Hazard Ratio : 1","Gene : PBRM1 <\/br> Hazard Ratio : 1.48","Gene : MLL2 <\/br> Hazard Ratio : 1","Gene : POLE <\/br> Hazard Ratio : 1","Gene : NTRK3 <\/br> Hazard Ratio : 1.02","Gene : GRIN2A <\/br> Hazard Ratio : 1","Gene : BCOR <\/br> Hazard Ratio : 0.93","Gene : SMARCA4 <\/br> Hazard Ratio : 1.05","Gene : PIK3CA <\/br> Hazard Ratio : 0.99","Gene : KRAS <\/br> Hazard Ratio : 1.14","Gene : INPP4B <\/br> Hazard Ratio : 1","Gene : SETD2 <\/br> Hazard Ratio : 1","Gene : CIC <\/br> Hazard Ratio : 0.93","Gene : SMAD4 <\/br> Hazard Ratio : 1","Gene : CTNNB1 <\/br> Hazard Ratio : 1","Gene : TET1 <\/br> Hazard Ratio : 1","Gene : AR <\/br> Hazard Ratio : 1","Gene : EPHB1 <\/br> Hazard Ratio : 1","Gene : NOTCH4 <\/br> Hazard Ratio : 0.92","Gene : ATR <\/br> Hazard Ratio : 1.04","Gene : PDGFRA <\/br> Hazard Ratio : 0.96","Gene : FLT1 <\/br> Hazard Ratio : 1","Gene : alk <\/br> Hazard Ratio : 0.3","Gene : met <\/br> Hazard Ratio : 1"],"mode":"markers","type":"scatter","marker":{"colorbar":{"title":"MeanCoefficient","ticklen":2},"cmin":-1.1988945473463,"cmax":0.697306684980072,"colorscale":[["0","rgba(68,1,84,1)"],["0.0416666666666667","rgba(70,19,97,1)"],["0.0833333333333333","rgba(72,32,111,1)"],["0.125","rgba(71,45,122,1)"],["0.166666666666667","rgba(68,58,128,1)"],["0.208333333333333","rgba(64,70,135,1)"],["0.25","rgba(60,82,138,1)"],["0.291666666666667","rgba(56,93,140,1)"],["0.333333333333333","rgba(49,104,142,1)"],["0.375","rgba(46,114,142,1)"],["0.416666666666667","rgba(42,123,142,1)"],["0.458333333333333","rgba(38,133,141,1)"],["0.5","rgba(37,144,140,1)"],["0.541666666666667","rgba(33,154,138,1)"],["0.583333333333333","rgba(39,164,133,1)"],["0.625","rgba(47,174,127,1)"],["0.666666666666667","rgba(53,183,121,1)"],["0.708333333333333","rgba(79,191,110,1)"],["0.75","rgba(98,199,98,1)"],["0.791666666666667","rgba(119,207,85,1)"],["0.833333333333333","rgba(147,214,70,1)"],["0.875","rgba(172,220,52,1)"],["0.916666666666667","rgba(199,225,42,1)"],["0.958333333333333","rgba(226,228,40,1)"],["1","rgba(253,231,37,1)"]],"showscale":false,"color":[0,0.0288396891288516,0.158539730995847,0,0.040699134352075,-0.0086476060260406,0,-0.202428394425334,0,0.697306684980072,-0.036095561351606,-0.0871208125879882,0,-0.0185340877378201,0,0,-0.0538847891544736,0,-0.0143528892003208,-0.0150274112093661,0,-0.0427454825665149,-0.00252043154279516,-0.249296543014613,0,0,-0.0970714264906414,0,0,0,0.0538027413545266,0,0.0560212844280711,0,0.0571419289152896,0,0,0,0.516330395302505,0,0.393438646740701,0,0,0.0173084842102466,0,-0.0779326231285771,0.0444332462765082,-0.00585579453033251,0.128862626387347,0,0,-0.0683925337682287,0,0,0,0,0,-0.0806884242871802,0.0365265453024715,-0.0421555774294451,0,-1.1988945473463,0],"size":[13.9344262295082,12.2950819672131,100,11.1475409836066,18.6885245901639,10,12.9508196721311,11.8032786885246,17.5409836065574,35.4098360655738,13.2786885245902,11.4754098360656,18.1967213114754,16.7213114754098,11.3114754098361,15.5737704918033,14.5901639344262,22.6229508196721,12.1311475409836,12.2950819672131,18.5245901639344,12.1311475409836,10.655737704918,55.5737704918033,14.9180327868852,12.1311475409836,14.7540983606557,10.4918032786885,13.7704918032787,10.655737704918,10.4918032786885,10,10.655737704918,11.9672131147541,13.1147540983607,14.7540983606557,19.016393442623,19.5081967213115,35.4098360655738,11.9672131147541,10,15.0819672131148,10.655737704918,13.4426229508197,14.4262295081967,10.327868852459,20.8196721311475,16.3934426229508,56.5573770491803,10.4918032786885,14.5901639344262,10.4918032786885,11.9672131147541,12.7868852459016,10.4918032786885,10.4918032786885,11.6393442622951,12.1311475409836,11.1475409836066,11.3114754098361,10.327868852459,10.1639344262295,10],"sizemode":"area","line":{"colorbar":{"title":"","ticklen":2},"cmin":-1.1988945473463,"cmax":0.697306684980072,"colorscale":[["0","rgba(68,1,84,1)"],["0.0416666666666667","rgba(70,19,97,1)"],["0.0833333333333333","rgba(72,32,111,1)"],["0.125","rgba(71,45,122,1)"],["0.166666666666667","rgba(68,58,128,1)"],["0.208333333333333","rgba(64,70,135,1)"],["0.25","rgba(60,82,138,1)"],["0.291666666666667","rgba(56,93,140,1)"],["0.333333333333333","rgba(49,104,142,1)"],["0.375","rgba(46,114,142,1)"],["0.416666666666667","rgba(42,123,142,1)"],["0.458333333333333","rgba(38,133,141,1)"],["0.5","rgba(37,144,140,1)"],["0.541666666666667","rgba(33,154,138,1)"],["0.583333333333333","rgba(39,164,133,1)"],["0.625","rgba(47,174,127,1)"],["0.666666666666667","rgba(53,183,121,1)"],["0.708333333333333","rgba(79,191,110,1)"],["0.75","rgba(98,199,98,1)"],["0.791666666666667","rgba(119,207,85,1)"],["0.833333333333333","rgba(147,214,70,1)"],["0.875","rgba(172,220,52,1)"],["0.916666666666667","rgba(199,225,42,1)"],["0.958333333333333","rgba(226,228,40,1)"],["1","rgba(253,231,37,1)"]],"showscale":false,"color":[0,0.0288396891288516,0.158539730995847,0,0.040699134352075,-0.0086476060260406,0,-0.202428394425334,0,0.697306684980072,-0.036095561351606,-0.0871208125879882,0,-0.0185340877378201,0,0,-0.0538847891544736,0,-0.0143528892003208,-0.0150274112093661,0,-0.0427454825665149,-0.00252043154279516,-0.249296543014613,0,0,-0.0970714264906414,0,0,0,0.0538027413545266,0,0.0560212844280711,0,0.0571419289152896,0,0,0,0.516330395302505,0,0.393438646740701,0,0,0.0173084842102466,0,-0.0779326231285771,0.0444332462765082,-0.00585579453033251,0.128862626387347,0,0,-0.0683925337682287,0,0,0,0,0,-0.0806884242871802,0.0365265453024715,-0.0421555774294451,0,-1.1988945473463,0]}},"textfont":{"size":[13.9344262295082,12.2950819672131,100,11.1475409836066,18.6885245901639,10,12.9508196721311,11.8032786885246,17.5409836065574,35.4098360655738,13.2786885245902,11.4754098360656,18.1967213114754,16.7213114754098,11.3114754098361,15.5737704918033,14.5901639344262,22.6229508196721,12.1311475409836,12.2950819672131,18.5245901639344,12.1311475409836,10.655737704918,55.5737704918033,14.9180327868852,12.1311475409836,14.7540983606557,10.4918032786885,13.7704918032787,10.655737704918,10.4918032786885,10,10.655737704918,11.9672131147541,13.1147540983607,14.7540983606557,19.016393442623,19.5081967213115,35.4098360655738,11.9672131147541,10,15.0819672131148,10.655737704918,13.4426229508197,14.4262295081967,10.327868852459,20.8196721311475,16.3934426229508,56.5573770491803,10.4918032786885,14.5901639344262,10.4918032786885,11.9672131147541,12.7868852459016,10.4918032786885,10.4918032786885,11.6393442622951,12.1311475409836,11.1475409836066,11.3114754098361,10.327868852459,10.1639344262295,10]},"error_y":{"width":[]},"error_x":{"width":[]},"xaxis":"x","yaxis":"y","frame":null},{"x":[-1.1988945473463,0.697306684980072],"y":[0,1],"type":"scatter","mode":"markers","opacity":0,"hoverinfo":"none","showlegend":false,"marker":{"colorbar":{"title":"MeanCoefficient","ticklen":2,"len":0.5,"lenmode":"fraction","y":1,"yanchor":"top"},"cmin":-1.1988945473463,"cmax":0.697306684980072,"colorscale":[["0","rgba(68,1,84,1)"],["0.0416666666666667","rgba(70,19,97,1)"],["0.0833333333333333","rgba(72,32,111,1)"],["0.125","rgba(71,45,122,1)"],["0.166666666666667","rgba(68,58,128,1)"],["0.208333333333333","rgba(64,70,135,1)"],["0.25","rgba(60,82,138,1)"],["0.291666666666667","rgba(56,93,140,1)"],["0.333333333333333","rgba(49,104,142,1)"],["0.375","rgba(46,114,142,1)"],["0.416666666666667","rgba(42,123,142,1)"],["0.458333333333333","rgba(38,133,141,1)"],["0.5","rgba(37,144,140,1)"],["0.541666666666667","rgba(33,154,138,1)"],["0.583333333333333","rgba(39,164,133,1)"],["0.625","rgba(47,174,127,1)"],["0.666666666666667","rgba(53,183,121,1)"],["0.708333333333333","rgba(79,191,110,1)"],["0.75","rgba(98,199,98,1)"],["0.791666666666667","rgba(119,207,85,1)"],["0.833333333333333","rgba(147,214,70,1)"],["0.875","rgba(172,220,52,1)"],["0.916666666666667","rgba(199,225,42,1)"],["0.958333333333333","rgba(226,228,40,1)"],["1","rgba(253,231,37,1)"]],"showscale":true,"color":[-1.1988945473463,0.697306684980072],"line":{"color":"rgba(255,127,14,1)"}},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script>
+
+---
+# Ensemble learning model
+
+![](Presentation_files/figure-html/unnamed-chunk-7-1.png)&lt;!-- --&gt;&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MedianOS &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; 95%CI &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; 1Ysurvival &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; 3Ysurvival &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; HazardRatio &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; riskGroup 1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 51.12 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; (38.22,92.04) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.89 (0.84,0.92) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.64 (0.54,0.71) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt;  &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; riskGroup 2 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 36.25 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; (29.97,62.53) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.85 (0.81,0.88) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.51 (0.44,0.58) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 1.332 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; riskGroup 3 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 20.76 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; (15.82,41.35) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.71 (0.61,0.79) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.39 (0.27,0.51) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2.196 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; riskGroup 4 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 7.34 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; (5.53,12.04) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.39 (0.28,0.49) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.25 (0.13,0.38) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 5.688 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+---
+# Limititations
+
+There are several limitations to this method however.
+
+- The method is sensitive to the choice of the weights in the adaptive penalty. Though it has nice asymptotic properties, in practical cases with limited sample size a poor choice of weights may lead to substantial bias and numerical issues
+
+- LASSO is known to perform poorly in datasets with high collinearity. This is further exacerbated from the weights `\(|\tilde{\beta}|\)` that would themselves be poorly estimated via MLE.
+
+- In general in settings where we have d &gt;&gt; n we will have issues estimating the weights.
+---
+# Resolving limitations
+
+- In cases where d &gt;&gt; n or with high colinearity we can still utilise this method by using another consistent estimator of `\(|\tilde{\beta}|\)`. By replacing this ML estimate with the Ridge estimator (which is consistent under certain conditions) we can still achieve the desired result. 
+
+
+- However in cases of high collinearity even if the weights are well estimated, the LASSO estimator will still suffer. Thus, we can also attempt to extend the Adaptive LASSO estimator to the elastic-net estimator, which incorportates both `\(L_1\)` and `\(L_2\)` penalty and acting as a mixture of LASSO and Ridge models:
+
+`\(\hat{\beta} = \underset{\beta}{\text{argmin}} \bigg( -\frac{1}{n} l_{n}(\beta) + \lambda_1 \sum_{j=1}^d |\beta_j|/|\tilde{\beta_j}| + \lambda_2 \sum_{j=1}^d \beta_j^2/\tilde{\beta_j}^2 \bigg)\)`
+
+---
+# Example
+
+&lt;table class="table" style="font-size: 11px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="6"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;N = 150, Model 1, Censoring = 10%&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;th style="empty-cells: hide;border-bottom:hidden;" colspan="1"&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Correlation = 0&lt;/div&gt;&lt;/th&gt;
+&lt;th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3"&gt;&lt;div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; "&gt;Correlation = 0.8&lt;/div&gt;&lt;/th&gt;
+&lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; AENET &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; MLE &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; LASSO &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; AENET &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; MSEs_var &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.069 (0.021) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.127 (0.032) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.035 (0.021) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.572 (0.25) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.244 (0.094) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.657 (0.295) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Corrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.72 (0.098) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.952 (0.047) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.936 (0.07) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.998 (0.01) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Incorrects &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0 (0) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.128 (0.179) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.132 (0.155) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; CPEs &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.784 (0.012) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.792 (0.013) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.793 (0.013) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.764 (0.018) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.729 (0.049) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 0.731 (0.042) &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;!-- --- --&gt;
+&lt;!-- # Outstanding tasks --&gt;
+
+&lt;!-- - Run larger simulations for the proposed ENET estimator --&gt;
+&lt;!-- - Look at that estimators theoretical properties (might be hard...) --&gt;
+&lt;!-- - Build software to run this method in R (currently available as an undocumented github repo) --&gt;
+&lt;!-- - left truncation estimator --&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
